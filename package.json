@@ -1,0 +1,10 @@
+{
+	"name": "concubine",
+	"version": "1.0.0",
+	"main": "dist/index.js",
+	"types": "src/index.ts",
+	"license": "MIT",
+	"devDependencies": {
+		"typescript": "^3.7.4"
+	}
+}
