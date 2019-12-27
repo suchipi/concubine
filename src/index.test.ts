@@ -1,36 +1,29 @@
 import { makeHooksSystem } from ".";
-
-class StateHolder {
+class Instance {
   stateSlots: Map<number, any> = new Map();
   currentStateSlot: number = 0;
-
-  advanceStateSlot() {
-    this.currentStateSlot++;
-  }
-
-  getOrInitStateSlot<T>(index: number, initialValue: T): T {
-    if (this.stateSlots.has(index)) {
-      return this.stateSlots.get(index);
-    } else {
-      this.setStateSlot(index, initialValue);
-      return this.stateSlots.get(index);
-    }
-  }
-
-  setStateSlot<T>(index: number, value: T) {
-    this.stateSlots.set(index, value);
-  }
 }
 
-const hooksSystem = makeHooksSystem<StateHolder>()(
+const hooksSystem = makeHooksSystem<Instance>()(
   {
     useState: (instance) => <T>(
       initialValue: T
     ): [T, (nextValue: T) => void] => {
       const slot = instance.currentStateSlot;
-      const value = instance.getOrInitStateSlot(slot, initialValue);
-      const setValue = (nextValue: T) => instance.setStateSlot(slot, nextValue);
-      instance.advanceStateSlot();
+
+      let value;
+      if (instance.stateSlots.has(slot)) {
+        value = instance.stateSlots.get(slot);
+      } else {
+        instance.stateSlots.set(slot, initialValue);
+        value = initialValue;
+      }
+
+      const setValue = (nextValue: T) => {
+        instance.stateSlots.set(slot, nextValue);
+      };
+
+      instance.currentStateSlot++;
 
       return [value, setValue];
     },
@@ -49,7 +42,7 @@ test("hooks system", () => {
     }
   `);
 
-  const holder = new StateHolder();
+  const holder = new Instance();
   hooksSystem.withInstance(holder, () => {
     const [slot0, setSlot0] = hooksSystem.hooks.useState(0);
 
@@ -67,4 +60,27 @@ test("hooks system", () => {
     const [slot1] = hooksSystem.hooks.useState(45);
     expect(slot1).toBe(45);
   });
+});
+
+test("error message when using hook function outside withInstance", () => {
+  expect(() => {
+    hooksSystem.hooks.useState(46);
+  }).toThrowErrorMatchingInlineSnapshot(
+    `"Attempted to use a hook function, but there was no active instance."`
+  );
+});
+
+test("error message when using hook function outside withInstance - custom message", () => {
+  const otherHookSystem = makeHooksSystem<Instance>()(
+    {
+      useSomething: (instance) => () => 45,
+    },
+    {
+      hookUsedOutsideOfWithInstanceErrorMessage: "Uh oh, that's not good",
+    }
+  );
+
+  expect(() => {
+    otherHookSystem.hooks.useSomething();
+  }).toThrowErrorMatchingInlineSnapshot(`"Uh oh, that's not good"`);
 });
